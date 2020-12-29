@@ -1,0 +1,22 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "poetry run pytest --mypy --flake8 && poetry run black --check .",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "coverage",
+      "type": "shell",
+      "command": "poetry run pytest -v --cov=simpletasks_data --cov-report html",
+      "problemMatcher": []
+    }
+  ]
+}

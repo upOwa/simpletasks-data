@@ -1,0 +1,17 @@
+{
+  "python.pythonPath": ".venv/bin/python3.6",
+  "python.terminal.activateEnvironment": false,
+  "editor.rulers": [110],
+  "python.formatting.provider": "black",
+  "python.linting.enabled": true,
+  "python.linting.pylintUseMinimalCheckers": false,
+  "python.linting.flake8Enabled": true,
+  "python.linting.mypyEnabled": true,
+  "triggerTaskOnSave.tasks": {
+    "test": ["*.py"]
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true
+  },
+  "python.analysis.diagnosticMode": "workspace"
+}
