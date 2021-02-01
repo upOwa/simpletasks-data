@@ -279,28 +279,21 @@ class Mapping(Generic[DestinationModel]):
         self._auto_counter += 1
         return Column(val, *args, **kwargs)
 
-    def col(self, column_name: str, *args, **kwargs) -> Column:
-        return Column(col2num(column_name), *args, **kwargs)
+    def col(self, column: Union[str, int], *args, **kwargs) -> Column:
+        """Shorthand to register a Column with a custom name/index.
 
-    def computedcol(
-        self,
-        *args,
-        **kwargs,
-    ) -> ComputedColumn:
-        return ComputedColumn(*args, **kwargs)
+        Will reset the next available column number.
 
-    def staticcol(self, *args, **kwargs) -> StaticColumn:
-        return StaticColumn(*args, **kwargs)
+        Args:
+        - column (Union[str, int]): Column name in A1N1 notation (e.g. "A", "F", "AF", etc.) or Column number (0-indexed)
+        - Same as `Column`
 
-    def field(self, *args, **kwargs) -> Field[Any, Any, Any]:
-        return Field(*args, **kwargs)
-
-    def computedfield(
-        self,
-        *args,
-        **kwargs,
-    ) -> ComputedField:
-        return ComputedField(*args, **kwargs)
+        Returns:
+        - Column: Created column
+        """
+        column_idx = col2num(column) if isinstance(column, str) else column
+        self._auto_counter = column_idx + 1
+        return Column(column_idx, *args, **kwargs)
 
     def get_key_column_name(self) -> str:
         return "id"
