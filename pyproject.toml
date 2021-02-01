@@ -4,7 +4,7 @@ target-version = ['py36']
 
 [tool.poetry]
 name = "simpletasks-data"
-version = "0.1.0"
+version = "0.2.0"
 description = "A simple library to import data into a database from different sources (extensible)"
 authors = ["Thomas Muguet <thomas.muguet@upowa.org>"]
 license = "LGPL-3.0-or-later"
