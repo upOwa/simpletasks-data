@@ -181,7 +181,7 @@ class StaticColumn(_Column[ColumnOutputType, str, None]):
         return self.value
 
 
-class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
+class Field(_Column[ColumnOutputType, ColumnInputType, SourceModel]):
     def __init__(
         self,
         field: str = None,
@@ -208,7 +208,7 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
         self.field = field
         self.parser = parser
 
-    def _get(self, row: DestinationModel) -> ColumnInputType:
+    def _get(self, row: SourceModel) -> ColumnInputType:
         item: Any = row
         for part in cast(str, self.field).split("."):
             item = getattr(item, part)
@@ -216,10 +216,10 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
                 break
         return cast(ColumnInputType, item)
 
-    def get_raw_values(self, row: DestinationModel) -> List[str]:
+    def get_raw_values(self, row: SourceModel) -> List[str]:
         return [str(self._get(row))]
 
-    def get(self, row: DestinationModel) -> ColumnOutputType:
+    def get(self, row: SourceModel) -> ColumnOutputType:
         if self in _Caching.values:
             return _Caching.values[self]
 
@@ -228,10 +228,10 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
         return val
 
 
-class ComputedField(_Column[ColumnOutputType, Any, DestinationModel]):
+class ComputedField(_Column[ColumnOutputType, Any, SourceModel]):
     def __init__(
         self,
-        columns: Iterable[Field[ColumnOutputType, Any, DestinationModel]],
+        columns: Iterable[Field[ColumnOutputType, Any, SourceModel]],
         computer: Callable[[Sequence[Any]], ColumnOutputType],
         warn_on_error: bool = True,
         warn_if_empty: bool = False,
@@ -255,13 +255,13 @@ class ComputedField(_Column[ColumnOutputType, Any, DestinationModel]):
         self.columns = columns
         self.computer = computer
 
-    def get_raw_values(self, row: DestinationModel) -> List[str]:
+    def get_raw_values(self, row: SourceModel) -> List[str]:
         lst = []
         for x in self.columns:
             lst.extend(x.get_raw_values(row))
         return lst
 
-    def get(self, row: DestinationModel) -> ColumnOutputType:
+    def get(self, row: SourceModel) -> ColumnOutputType:
         if self in _Caching.values:
             return _Caching.values[self]
 
@@ -292,7 +292,7 @@ class Mapping(Generic[DestinationModel]):
     def staticcol(self, *args, **kwargs) -> StaticColumn:
         return StaticColumn(*args, **kwargs)
 
-    def field(self, *args, **kwargs) -> Field[Any, Any, DestinationModel]:
+    def field(self, *args, **kwargs) -> Field[Any, Any, Any]:
         return Field(*args, **kwargs)
 
     def computedfield(
@@ -346,11 +346,13 @@ class Mapping(Generic[DestinationModel]):
                         column.parser = cast(Callable[[str], ColumnOutputType], parseShittyTime)
                     else:
                         raise NotImplementedError(
-                            "Could not find formatter for type {}".format(columnModel.type)
+                            "Could not find parser for type {}; you should provide a parser explicitely for the column {}".format(
+                                columnModel.type, name
+                            )
                         )
             elif isinstance(column, ComputedColumn):
                 if not column.computer:
-                    raise ValueError("computer cannot be empty for ComputedColumn")
+                    raise ValueError("computer cannot be empty for ComputedColumn {}".format(name))
             elif isinstance(column, StaticColumn):
                 pass
             elif isinstance(column, Field):
@@ -360,9 +362,9 @@ class Mapping(Generic[DestinationModel]):
                     column.field = name
             elif isinstance(column, ComputedField):
                 if not column.computer:
-                    raise ValueError("computer cannot be empty for ComputedField")
+                    raise ValueError("computer cannot be empty for ComputedField {}".format(name))
             else:
-                raise RuntimeError("Unsupported type of column")
+                raise RuntimeError("Unsupported type of column {}".format(name))
 
             if not column.comparator:
                 column.comparator = lambda x, y: x == y
@@ -375,7 +377,7 @@ class Mapping(Generic[DestinationModel]):
                 keycolumn = column
 
         if keycolumn_name is None or keycolumn is None:
-            raise ValueError("Could not find key column in mapping")
+            raise ValueError("Could not find key column {} in mapping".format(self.get_key_column_name()))
         return (keycolumn_name, keycolumn)
 
     # def column_mapped(self, column_number: int) -> Optional[str]:

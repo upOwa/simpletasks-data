@@ -40,7 +40,7 @@ def dump_int(val: Optional[Union[int, float]]) -> str:
 
 def dump_percentage(val: Optional[float]) -> str:
     if val is None or is_undefined(val):
-        return "0"
+        return "0.0"
     return "{:.1f}".format(val * 100)
 
 
@@ -109,6 +109,8 @@ def str2strnullable(v: str, maxlength: Optional[int] = None) -> Optional[str]:
     if not v:
         return None
     val = v.strip()
+    if not val:
+        return None
     if maxlength is not None and len(val) > maxlength:
         val = val[0:maxlength]
     return val
@@ -162,7 +164,7 @@ def parseShittyDate(date: str, shittyFormat: str = "fr_FR") -> Optional[datetime
         except ValueError:
             return datetime.datetime.strptime(stripped, "%m.%d.%Y" if shittyFormat == "fr_FR" else "%d.%m.%Y")
     else:
-        if stripped == "10000-01-01 0:00:00":
+        if stripped == "10000-01-01" or stripped == "10000-01-01 0:00:00":
             return datetime.datetime.max
         return datetime.datetime.strptime(stripped, "%Y-%m-%d") if stripped else None
 
