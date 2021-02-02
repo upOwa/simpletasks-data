@@ -22,7 +22,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.6.1"
-simpletasks = {git = "https://github.com/upOwa/simpletasks.git", rev = "devel"}
+simpletasks = "^0.1.1"
 Flask = "^1.1.2"
 Flask-SQLAlchemy = "^2.4.4"
 GeoAlchemy2 = {version = "^0.8.4", optional = true}
