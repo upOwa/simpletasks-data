@@ -9,10 +9,10 @@ def col2num(col: str) -> int:
     Example: column "A" gives 0, "B" gives 1
 
     Args:
-        col (str): Name of the column (e.g. AG)
+    - col (str): Name of the column (e.g. AG)
 
     Returns:
-        int: Number of the column (starting from 0)
+    - int: Number of the column (starting from 0)
     """
     num = 0
     for c in col:
@@ -29,10 +29,10 @@ def num2col(n: int) -> str:
     Example: 1 gives "A"
 
     Args:
-        n (int): Column number (starting from 1)
+    - n (int): Column number (starting from 1)
 
     Returns:
-        str: Column name
+    - str: Column name
     """
     string = ""
     while n > 0:
@@ -45,13 +45,13 @@ def cell2coords(cell: str) -> Tuple[Optional[int], Optional[int]]:
     """Returns coordinates of a cell from its A1N1 notation
 
     Args:
-        cell (str): Cell reference (e.g. A1, or A, or 1)
+    - cell (str): Cell reference (e.g. A1, or A, or 1)
 
     Raises:
-        ValueError: Range could not be parsed
+    - ValueError: Range could not be parsed
 
     Returns:
-        Tuple[Optional[int], Optional[int]]: Tuple of (column, row)
+    - Tuple[Optional[int], Optional[int]]: Tuple of (column, row)
     """
     coords = re.search(r"^([A-Z]*)(\d*)$", cell)
 
@@ -69,13 +69,13 @@ def range2tab(range: str) -> Tuple[int, int, Optional[int], Optional[int]]:
     (usable for low-level operations, see operations module)
 
     Args:
-        range (str): Range in A1N1 notation (e.g. A1:G) - accepts wildcard for end of range (e.g. A1:*)
+    - range (str): Range in A1N1 notation (e.g. A1:G) - accepts wildcard for end of range (e.g. A1:*)
 
     Raises:
-        ValueError: Could not parse range
+    - ValueError: Could not parse range
 
     Returns:
-        Tuple[int, int, Optional[int]]: Tuple of:
+    - Tuple[int, int, Optional[int]]: Tuple of:
         - Column of the start of the range (starting from 0)
         - Row of the start of the range (starting from 0)
         - Column of the end of the range (or None if wildcard)

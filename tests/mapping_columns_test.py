@@ -49,6 +49,36 @@ def test_column(clearCaching) -> None:
     _Caching.values.clear()
 
 
+def test_mappedcolumn(clearCaching) -> None:
+    class MyMapping(Mapping[MyModel]):
+        def __init__(self) -> None:
+            super().__init__()
+            self.id = self.col("A")
+            self.col1 = self.auto()
+
+    mapping = MyMapping()
+    mapping._complete_from_model(MyModel())
+    assert mapping.id.column_number == 0
+    assert mapping.col1.column_number == 1
+
+    o1 = ["1", ""]
+
+    assert mapping.id.get_raw_values(o1) == ["1"]
+    assert mapping.id.get(o1) == 1
+    assert _Caching.values[mapping.id] == 1
+
+    assert mapping.col1.get_raw_values(o1) == [""]
+    assert mapping.col1.get(o1) is None
+    assert _Caching.values[mapping.col1] is None
+    _Caching.values.clear()
+
+    o2 = ["2", "E"]
+    assert mapping.col1.get_raw_values(o2) == ["E"]
+    assert mapping.col1.get(o2) == "E"
+    assert _Caching.values[mapping.col1] == "E"
+    _Caching.values.clear()
+
+
 def test_column_outofrange(clearCaching) -> None:
     col = Column(0, lambda x: x)
     with pytest.raises(IndexError) as e:
@@ -127,12 +157,18 @@ def test_mappedfield(clearCaching) -> None:
     class MyMapping(Mapping[MyModel]):
         def __init__(self) -> None:
             super().__init__()
-            self.id = self.field()
-            self.col1 = self.field()
+            self.id: Field[int, int, MyModel] = Field()
+            self.col1: Field[str, str, MyModel] = Field()
 
     mapping = MyMapping()
     o1 = MyModel(id=1, col1="", col2="", col3="C", col4="D")
     mapping._complete_from_model(o1)
+    assert mapping.id.field == "id"
+    assert mapping.col1.field == "col1"
+
+    assert mapping.id.get_raw_values(o1) == ["1"]
+    assert mapping.id.get(o1) == 1
+    assert _Caching.values[mapping.id] == 1
 
     assert mapping.col1.get_raw_values(o1) == [""]
     assert mapping.col1.get(o1) == ""

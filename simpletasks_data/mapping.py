@@ -29,6 +29,8 @@ class _Caching:
 
 
 class _Column(Generic[ColumnOutputType, ColumnInputType, SourceType], metaclass=abc.ABCMeta):
+    """Base class for columns mapping"""
+
     def __init__(
         self,
         warn_on_error: bool = True,
@@ -40,6 +42,18 @@ class _Column(Generic[ColumnOutputType, ColumnInputType, SourceType], metaclass=
         formatter: Callable[[ColumnOutputType], str] = None,
         header: str = None,
     ) -> None:
+        """Constructor
+
+        Args:
+        - warn_on_error (bool, optional): Logs a warning if parsing failed; otherwise will ignore the column silently. Defaults to True.
+        - warn_if_empty (bool, optional): Logs a warning if parsed value is empty. Defaults to False.
+        - should_update (bool, optional): If False, disables update of the column, thus only using this column when creating an item. Defaults to True.
+        - should_update_only_if_null (bool, optional): If True, disables update of the column if its stored value is non-null. Defaults to False.
+        - keep_history (bool, optional): If True, keeps history of the column on changes. Defaults to False.
+        - comparator (Callable[[ColumnOutputType, ColumnOutputType], bool], optional): Comparator to use to compare the stored value and the parsed value when importing - this is useful for types where "==" operator does not work. Defaults to None.
+        - formatter (Callable[[ColumnOutputType], str], optional): Formatter to output the value when exported. Defaults to None (using "str(x)" method).
+        - header (str, optional): Name of the column. Defaults to None.
+        """
         self.warn_on_error = warn_on_error
         self.warn_if_empty = warn_if_empty
         self.should_update = should_update
@@ -57,14 +71,35 @@ class _Column(Generic[ColumnOutputType, ColumnInputType, SourceType], metaclass=
 
     @abc.abstractmethod
     def get_raw_values(self, row: SourceType) -> List[str]:
-        pass
+        """Returns the raw value(s) from the source
+
+        Args:
+        - row (SourceType): Raw data
+
+        Returns:
+        - List[str]: One or more values
+        """
+        pass  # pragma: no cover
 
     @abc.abstractmethod
     def get(self, row: SourceType) -> ColumnOutputType:
-        pass
+        """Gets the value of the column
+
+        Args:
+        - row (SourceType): Raw data
+
+        Returns:
+        - ColumnOutputType: Parsed value
+
+        Raises:
+        - ValueError, KeyError, AttributeError: will be handled gracefully during import. Other exceptions will fail the whole import
+        """
+        pass  # pragma: no cover
 
 
 class Column(_Column[ColumnOutputType, str, Sequence[str]]):
+    """Base class for CSV columns"""
+
     def __init__(
         self,
         column_number: int,
@@ -79,6 +114,21 @@ class Column(_Column[ColumnOutputType, str, Sequence[str]]):
         formatter: Callable[[ColumnOutputType], str] = None,
         header: str = None,
     ) -> None:
+        """Constructor
+
+        Args:
+        - column_number (int): Column number in the CSV (0-based)
+        - parser (Callable[[str], ColumnOutputType], optional): Parser - if none provided, will be computed from the model. Defaults to None.
+        - warn_on_error (bool, optional): Logs a warning if parsing failed; otherwise will ignore the column silently. Defaults to True.
+        - warn_if_empty (bool, optional): Logs a warning if parsed value is empty. Defaults to False.
+        - should_update (bool, optional): If False, disables update of the column, thus only using this column when creating an item. Defaults to True.
+        - should_update_only_if_null (bool, optional): If True, disables update of the column if its stored value is non-null. Defaults to False.
+        - keep_history (bool, optional): If True, keeps history of the column on changes. Defaults to False.
+        - comparator (Callable[[ColumnOutputType, ColumnOutputType], bool], optional): Comparator to use to compare the stored value and the parsed value when importing - this is useful for types where "==" operator does not work. Defaults to None.
+        - fail_on_out_of_range (bool, optional): Logs a warning if column number does not exist, otherwise will ignore the column silently. Defaults to True.
+        - formatter (Callable[[ColumnOutputType], str], optional): Formatter to output the value when exported. Defaults to None (using "str(x)" method).
+        - header (str, optional): Name of the column. Defaults to None.
+        """
         super().__init__(
             warn_on_error=warn_on_error,
             warn_if_empty=warn_if_empty,
@@ -94,6 +144,14 @@ class Column(_Column[ColumnOutputType, str, Sequence[str]]):
         self.fail_on_out_of_range = fail_on_out_of_range
 
     def get_raw_values(self, row: Sequence[str]) -> List[str]:
+        """Returns the raw value from the source
+
+        Args:
+        - row (Sequence[str]): Raw data
+
+        Returns:
+        - List[str]: List with a single item
+        """
         if self.fail_on_out_of_range:
             return [row[self.column_number]]
         else:
@@ -103,6 +161,16 @@ class Column(_Column[ColumnOutputType, str, Sequence[str]]):
                 return [""]
 
     def get(self, row: Sequence[str]) -> ColumnOutputType:
+        """Gets the value of the column.
+
+        Uses caching to avoid multiple computations (see _Caching).
+
+        Args:
+        - row (Sequence[str]): Raw data
+
+        Returns:
+        - ColumnOutputType: Parsed value
+        """
         if self in _Caching.values:
             return _Caching.values[self]
 
@@ -112,6 +180,8 @@ class Column(_Column[ColumnOutputType, str, Sequence[str]]):
 
 
 class ComputedColumn(_Column[ColumnOutputType, str, Sequence[str]]):
+    """Column that is computed based on one or several CSV columns"""
+
     def __init__(
         self,
         columns: Iterable[_Column[ColumnOutputType, str, Sequence[str]]],
@@ -125,6 +195,20 @@ class ComputedColumn(_Column[ColumnOutputType, str, Sequence[str]]):
         formatter: Callable[[ColumnOutputType], str] = None,
         header: str = None,
     ) -> None:
+        """Constructor
+
+        Args:
+        - columns (Iterable[_Column[ColumnOutputType, str, Sequence[str]]]): List of input columns
+        - computer (Callable[[Sequence[Any]], ColumnOutputType]): Callback to compute the value of the column
+        - warn_on_error (bool, optional): Logs a warning if parsing failed; otherwise will ignore the column silently. Defaults to True.
+        - warn_if_empty (bool, optional): Logs a warning if parsed value is empty. Defaults to False.
+        - should_update (bool, optional): If False, disables update of the column, thus only using this column when creating an item. Defaults to True.
+        - should_update_only_if_null (bool, optional): If True, disables update of the column if its stored value is non-null. Defaults to False.
+        - keep_history (bool, optional): If True, keeps history of the column on changes. Defaults to False.
+        - comparator (Callable[[ColumnOutputType, ColumnOutputType], bool], optional): Comparator to use to compare the stored value and the parsed value when importing - this is useful for types where "==" operator does not work. Defaults to None.
+        - formatter (Callable[[ColumnOutputType], str], optional): Formatter to output the value when exported. Defaults to None (using "str(x)" method).
+        - header (str, optional): Name of the column. Defaults to None.
+        """
         super().__init__(
             warn_on_error=warn_on_error,
             warn_if_empty=warn_if_empty,
@@ -139,12 +223,30 @@ class ComputedColumn(_Column[ColumnOutputType, str, Sequence[str]]):
         self.computer = computer
 
     def get_raw_values(self, row: Sequence[str]) -> List[str]:
+        """Returns the raw values from the source
+
+        Args:
+        - row (Sequence[str]): Raw data
+
+        Returns:
+        - List[str]: List of raw values from input columns
+        """
         lst = []
         for x in self.columns:
             lst.extend(x.get_raw_values(row))
         return lst
 
     def get(self, row: Sequence[str]) -> ColumnOutputType:
+        """Gets the value of the column.
+
+        Uses caching to avoid multiple computations (see _Caching).
+
+        Args:
+        - row (Sequence[str]): Raw data
+
+        Returns:
+        - ColumnOutputType: Computed value
+        """
         if self in _Caching.values:
             return _Caching.values[self]
 
@@ -154,6 +256,8 @@ class ComputedColumn(_Column[ColumnOutputType, str, Sequence[str]]):
 
 
 class StaticColumn(_Column[ColumnOutputType, str, None]):
+    """Column that has a static value, that never changes."""
+
     def __init__(
         self,
         value: ColumnOutputType,
@@ -164,6 +268,18 @@ class StaticColumn(_Column[ColumnOutputType, str, None]):
         formatter: Callable[[ColumnOutputType], str] = None,
         header: str = None,
     ) -> None:
+        """Constructor
+
+        Args:
+        - value (ColumnOutputType): Value of the column
+        - should_update (bool, optional): If False, disables update of the column, thus only using this column when creating an item. Defaults to True.
+        - should_update_only_if_null (bool, optional): If True, disables update of the column if its stored value is non-null. Defaults to False.
+        - keep_history (bool, optional): If True, keeps history of the column on changes. Defaults to False.
+        - comparator (Callable[[ColumnOutputType, ColumnOutputType], bool], optional): Comparator to use to compare the stored value and the parsed value when importing - this is useful for types where "==" operator does not work. Defaults to None.
+        - formatter (Callable[[ColumnOutputType], str], optional): Formatter to output the value when exported. Defaults to None (using "str(x)" method).
+        - header (str, optional): Name of the column. Defaults to None.
+        """
+
         super().__init__(
             should_update=should_update,
             should_update_only_if_null=should_update_only_if_null,
@@ -175,13 +291,31 @@ class StaticColumn(_Column[ColumnOutputType, str, None]):
         self.value = value
 
     def get_raw_values(self, row: Any) -> List[str]:
+        """Returns the raw values from the source
+
+        Args:
+        - row (Any): Raw data (not used)
+
+        Returns:
+        - List[str]: List with a single item
+        """
         return [str(self.value)]
 
     def get(self, row: Any) -> ColumnOutputType:
+        """Gets the static value of the column.
+
+        Args:
+        - row (Any): Raw data (not used)
+
+        Returns:
+        - ColumnOutputType: Static value
+        """
         return self.value
 
 
-class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
+class Field(_Column[ColumnOutputType, ColumnInputType, SourceModel]):
+    """Base class for model-based columns"""
+
     def __init__(
         self,
         field: str = None,
@@ -195,6 +329,20 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
         formatter: Callable[[ColumnOutputType], str] = None,
         header: str = None,
     ) -> None:
+        """Constructor
+
+        Args:
+        - field (str, optional): Field name. Defaults to None, will use the name of the class field (e.g. `self.foobar = Field()` will set `foobar` as field name). Can use dotted syntax to traverse relations.
+        - parser (Callable[[ColumnInputType], ColumnOutputType], optional): Parser - if none provided, will be computed from the model. Defaults to None.
+        - warn_on_error (bool, optional): Logs a warning if parsing failed; otherwise will ignore the column silently. Defaults to True.
+        - warn_if_empty (bool, optional): Logs a warning if parsed value is empty. Defaults to False.
+        - should_update (bool, optional): If False, disables update of the column, thus only using this column when creating an item. Defaults to True.
+        - should_update_only_if_null (bool, optional): If True, disables update of the column if its stored value is non-null. Defaults to False.
+        - keep_history (bool, optional): If True, keeps history of the column on changes. Defaults to False.
+        - comparator (Callable[[ColumnOutputType, ColumnOutputType], bool], optional): Comparator to use to compare the stored value and the parsed value when importing - this is useful for types where "==" operator does not work. Defaults to None.
+        - formatter (Callable[[ColumnOutputType], str], optional): Formatter to output the value when exported. Defaults to None (using "str(x)" method).
+        - header (str, optional): Name of the column. Defaults to None.
+        """
         super().__init__(
             warn_on_error=warn_on_error,
             warn_if_empty=warn_if_empty,
@@ -208,7 +356,7 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
         self.field = field
         self.parser = parser
 
-    def _get(self, row: DestinationModel) -> ColumnInputType:
+    def _get(self, row: SourceModel) -> ColumnInputType:
         item: Any = row
         for part in cast(str, self.field).split("."):
             item = getattr(item, part)
@@ -216,10 +364,28 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
                 break
         return cast(ColumnInputType, item)
 
-    def get_raw_values(self, row: DestinationModel) -> List[str]:
+    def get_raw_values(self, row: SourceModel) -> List[str]:
+        """Returns the raw value from the source
+
+        Args:
+        - row (SourceModel): Raw data
+
+        Returns:
+        - List[str]: List with a single item
+        """
         return [str(self._get(row))]
 
-    def get(self, row: DestinationModel) -> ColumnOutputType:
+    def get(self, row: SourceModel) -> ColumnOutputType:
+        """Gets the value of the column.
+
+        Uses caching to avoid multiple computations (see _Caching).
+
+        Args:
+        - row (SourceModel): Raw data
+
+        Returns:
+        - ColumnOutputType: Parsed value
+        """
         if self in _Caching.values:
             return _Caching.values[self]
 
@@ -228,10 +394,12 @@ class Field(_Column[ColumnOutputType, ColumnInputType, DestinationModel]):
         return val
 
 
-class ComputedField(_Column[ColumnOutputType, Any, DestinationModel]):
+class ComputedField(_Column[ColumnOutputType, Any, SourceModel]):
+    """Field that is computed based on one or several fields"""
+
     def __init__(
         self,
-        columns: Iterable[Field[ColumnOutputType, Any, DestinationModel]],
+        columns: Iterable[Field[ColumnOutputType, Any, SourceModel]],
         computer: Callable[[Sequence[Any]], ColumnOutputType],
         warn_on_error: bool = True,
         warn_if_empty: bool = False,
@@ -242,6 +410,20 @@ class ComputedField(_Column[ColumnOutputType, Any, DestinationModel]):
         formatter: Callable[[ColumnOutputType], str] = None,
         header: str = None,
     ) -> None:
+        """Constructor
+
+        Args:
+        - columns (Iterable[_Column[ColumnOutputType, str, SourceModel]]): List of input columns
+        - computer (Callable[[Sequence[Any]], ColumnOutputType]): Callback to compute the value of the column
+        - warn_on_error (bool, optional): Logs a warning if parsing failed; otherwise will ignore the column silently. Defaults to True.
+        - warn_if_empty (bool, optional): Logs a warning if parsed value is empty. Defaults to False.
+        - should_update (bool, optional): If False, disables update of the column, thus only using this column when creating an item. Defaults to True.
+        - should_update_only_if_null (bool, optional): If True, disables update of the column if its stored value is non-null. Defaults to False.
+        - keep_history (bool, optional): If True, keeps history of the column on changes. Defaults to False.
+        - comparator (Callable[[ColumnOutputType, ColumnOutputType], bool], optional): Comparator to use to compare the stored value and the parsed value when importing - this is useful for types where "==" operator does not work. Defaults to None.
+        - formatter (Callable[[ColumnOutputType], str], optional): Formatter to output the value when exported. Defaults to None (using "str(x)" method).
+        - header (str, optional): Name of the column. Defaults to None.
+        """
         super().__init__(
             warn_on_error=warn_on_error,
             warn_if_empty=warn_if_empty,
@@ -255,13 +437,31 @@ class ComputedField(_Column[ColumnOutputType, Any, DestinationModel]):
         self.columns = columns
         self.computer = computer
 
-    def get_raw_values(self, row: DestinationModel) -> List[str]:
+    def get_raw_values(self, row: SourceModel) -> List[str]:
+        """Returns the raw values from the source
+
+        Args:
+        - row (SourceModel): Raw data
+
+        Returns:
+        - List[str]: List of raw values from input columns
+        """
         lst = []
         for x in self.columns:
             lst.extend(x.get_raw_values(row))
         return lst
 
-    def get(self, row: DestinationModel) -> ColumnOutputType:
+    def get(self, row: SourceModel) -> ColumnOutputType:
+        """Gets the value of the column.
+
+        Uses caching to avoid multiple computations (see _Caching).
+
+        Args:
+        - row (SourceModel): Raw data
+
+        Returns:
+        - ColumnOutputType: Computed value
+        """
         if self in _Caching.values:
             return _Caching.values[self]
 
@@ -271,47 +471,81 @@ class ComputedField(_Column[ColumnOutputType, Any, DestinationModel]):
 
 
 class Mapping(Generic[DestinationModel]):
+    """Defines a mapping between a source and a model (for importing), or between a model and a destination (for exporting)"""
+
     def __init__(self) -> None:
+        """Constructor"""
         self._auto_counter = 0
 
     def auto(self, *args, **kwargs) -> Column:
+        """Shorthand to register a Column with the next available column number.
+
+        Typically used as `self.foobar = self.auto()` in constructor.
+
+        Args: same as `Column`.
+
+        Returns:
+        - Column: Created column
+        """
         val = self._auto_counter
         self._auto_counter += 1
         return Column(val, *args, **kwargs)
 
-    def col(self, column_name: str, *args, **kwargs) -> Column:
-        return Column(col2num(column_name), *args, **kwargs)
+    def col(self, column: Union[str, int], *args, **kwargs) -> Column:
+        """Shorthand to register a Column with a custom name/index.
 
-    def computedcol(
-        self,
-        *args,
-        **kwargs,
-    ) -> ComputedColumn:
-        return ComputedColumn(*args, **kwargs)
+        Will reset the next available column number.
 
-    def staticcol(self, *args, **kwargs) -> StaticColumn:
-        return StaticColumn(*args, **kwargs)
+        Args:
+        - column (Union[str, int]): Column name in A1N1 notation (e.g. "A", "F", "AF", etc.) or Column number (0-indexed)
+        - Same as `Column`
 
-    def field(self, *args, **kwargs) -> Field[Any, Any, DestinationModel]:
-        return Field(*args, **kwargs)
-
-    def computedfield(
-        self,
-        *args,
-        **kwargs,
-    ) -> ComputedField:
-        return ComputedField(*args, **kwargs)
+        Returns:
+        - Column: Created column
+        """
+        column_idx = col2num(column) if isinstance(column, str) else column
+        self._auto_counter = column_idx + 1
+        return Column(column_idx, *args, **kwargs)
 
     def get_key_column_name(self) -> str:
+        """Method that can be implemented in the concrete class to define a custom column as key column.
+
+        The key column will be used to match input data with the model.
+        By default, "id" is used. You can provide another name by reimplementing this in your class.
+        The column name *MUST* be a field member of the class (e.g. `self.id = self.auto()`).
+
+        Returns:
+        - str: Name of the column
+        """
         return "id"
 
     def get_key_column_comparator(self) -> Callable[[Any], Any]:
+        """Method that can be implemented in the concrete class to define a custom comparator for the key column.
+
+        The comparator converts the value from the model into a value that is 1- hashable and 2- comparable with the input data via "==" operator.
+        As some types are not well handled (e.g. geographical objects), it can be necessary to implement this.
+
+        Returns:
+        - Callable[[Any], Any]: Method to convert your data
+        """
         return lambda x: x
 
     def get_header_line_number(self) -> int:
+        """Method that can be implemented in the concrete class to define the number of lines to skip in the source.
+
+        By default, one header line is defined and skipped (value of 0). Use `-1` not to skip any lines.
+
+        Returns:
+        - int: Number of lines to skip in the source
+        """
         return 0
 
     def get_columns(self) -> List[Tuple[str, _Column]]:
+        """Returns the columns defined in this mapping
+
+        Returns:
+        - List[Tuple[str, _Column]]: List of tuples (name of the column in the model, _Column object)
+        """
         columns = []
         for i in inspect.getmembers(self):
             if not i[0].startswith("_") and not inspect.ismethod(i[1]):
@@ -320,6 +554,24 @@ class Mapping(Generic[DestinationModel]):
         return columns
 
     def _complete_from_model(self, model: DestinationModel) -> Tuple[str, _Column]:
+        """Generates from the model:
+        - parsers
+        - field names
+        - comparators
+        - headers
+
+        Args:
+        - model (DestinationModel): Model
+
+        Raises:
+        - NotImplementedError: Unknown SQLAlchemy column type to determine parser - must define parser explicitely
+        - ValueError: computer parameter not provided for ComputedColumn/ComputedField
+        - ValueError: key column could not be found
+        - RuntimeError: Unsupported type of column
+
+        Returns:
+        - Tuple[str, _Column]: Tuple (keycolumn_name, keycolumn)
+        """
         keycolumn_name = None
         keycolumn = None
 
@@ -346,11 +598,13 @@ class Mapping(Generic[DestinationModel]):
                         column.parser = cast(Callable[[str], ColumnOutputType], parseShittyTime)
                     else:
                         raise NotImplementedError(
-                            "Could not find formatter for type {}".format(columnModel.type)
+                            "Could not find parser for type {}; you should provide a parser explicitely for the column {}".format(
+                                columnModel.type, name
+                            )
                         )
             elif isinstance(column, ComputedColumn):
                 if not column.computer:
-                    raise ValueError("computer cannot be empty for ComputedColumn")
+                    raise ValueError("computer cannot be empty for ComputedColumn {}".format(name))
             elif isinstance(column, StaticColumn):
                 pass
             elif isinstance(column, Field):
@@ -360,9 +614,9 @@ class Mapping(Generic[DestinationModel]):
                     column.field = name
             elif isinstance(column, ComputedField):
                 if not column.computer:
-                    raise ValueError("computer cannot be empty for ComputedField")
+                    raise ValueError("computer cannot be empty for ComputedField {}".format(name))
             else:
-                raise RuntimeError("Unsupported type of column")
+                raise RuntimeError("Unsupported type of column {}".format(name))
 
             if not column.comparator:
                 column.comparator = lambda x, y: x == y
@@ -375,7 +629,7 @@ class Mapping(Generic[DestinationModel]):
                 keycolumn = column
 
         if keycolumn_name is None or keycolumn is None:
-            raise ValueError("Could not find key column in mapping")
+            raise ValueError("Could not find key column {} in mapping".format(self.get_key_column_name()))
         return (keycolumn_name, keycolumn)
 
     # def column_mapped(self, column_number: int) -> Optional[str]:

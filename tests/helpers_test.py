@@ -38,3 +38,19 @@ def test_range2tab() -> None:
     with pytest.raises(ValueError) as e:
         range2tab("*:A")
     assert str(e.value) == "Could not parse range *"
+
+    with pytest.raises(ValueError) as e:
+        range2tab("AB")
+    assert str(e.value) == "Could not parse range AB"
+
+    with pytest.raises(ValueError) as e:
+        range2tab("A:B:C")
+    assert str(e.value) == "Could not parse range A:B:C"
+
+    with pytest.raises(ValueError) as e:
+        range2tab("A:*")
+    assert str(e.value) == "Could not parse range A:*"
+
+    with pytest.raises(ValueError) as e:
+        range2tab("1:*")
+    assert str(e.value) == "Could not parse range 1:*"

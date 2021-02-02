@@ -4,7 +4,7 @@ target-version = ['py36']
 
 [tool.poetry]
 name = "simpletasks-data"
-version = "0.1.0"
+version = "0.2.0"
 description = "A simple library to import data into a database from different sources (extensible)"
 authors = ["Thomas Muguet <thomas.muguet@upowa.org>"]
 license = "LGPL-3.0-or-later"
@@ -22,7 +22,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.6.1"
-simpletasks = "^0.1.0"
+simpletasks = "^0.1.1"
 Flask = "^1.1.2"
 Flask-SQLAlchemy = "^2.4.4"
 GeoAlchemy2 = {version = "^0.8.4", optional = true}

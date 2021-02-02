@@ -10,20 +10,58 @@ from .mapping import DestinationModel, DestinationModelHistory, _Caching
 
 
 class ImportTask(Task, Generic[DestinationModel, DestinationModelHistory], metaclass=abc.ABCMeta):
+    """Task to import data into a DestinationModel, from one or several sources.
+    Supports creation of historical data to track changes - see createHistoryModel.
+    """
+
     db: Optional[SQLAlchemy] = None
 
     @staticmethod
     def configure(db: SQLAlchemy) -> None:
+        """Configures the DB to work on. It is mandatory to call it once before executing any ImportTask.
+
+        Args:
+        - db (SQLAlchemy): SQLAlchemy object
+        """
         ImportTask.db = db
 
     @abc.abstractmethod
     def createModel(self) -> DestinationModel:
-        raise NotImplementedError
+        """Method to implement in concrete class to initialize a new item.
+
+        Returns:
+        - DestinationModel: New item
+        """
+        raise NotImplementedError  # pragma: no cover
 
     def createHistoryModel(self, base: DestinationModel) -> Optional[DestinationModelHistory]:
+        """Method to implement in a concrete class to initialize a new item to track changes.
+
+        For each field that is tracked in the original item, this item must have 2 fields:
+        - "old_" + name
+         "new_" + name
+
+        Args:
+        - base (DestinationModel): Original item
+
+        Returns:
+        - Optional[DestinationModelHistory]: New item, or None if not supported
+        """
         return None
 
     def validate_updates(self, model: DestinationModel, updates: Dict[str, Any], creating: bool) -> bool:
+        """Method that can be implemented in the concrete class to filter-out rows once imported.
+
+        By default, items that have None values on non-nullable columns are rejected.
+
+        Args:
+        - model (DestinationModel): Item to update/create
+        - updates (Dict[str, Any]): All updates to apply
+        - creating (bool): True if creating the item
+
+        Returns:
+        - bool: True if should apply updates, or False if should skip this item
+        """
         for column in self.nonNullableColumns:
             if self.get_updated_value_for(model, column) is None:
                 self.logger.warning("Rejecting update of '{}': {} is None".format(model, column))
@@ -33,27 +71,78 @@ class ImportTask(Task, Generic[DestinationModel, DestinationModelHistory], metac
 
     @abc.abstractmethod
     def get_sources(self) -> Iterable[ImportSource]:
-        raise NotImplementedError
+        """Method to implement to define the sources.
+
+        Returns:
+        - Iterable[ImportSource]: List of sources to use (will be used in that order)
+        """
+        raise NotImplementedError  # pragma: no cover
 
     def pre_process(self) -> Dict[str, int]:
+        """Method that can be implemented to do some processing before sources are parsed.
+
+        Returns:
+        - Dict[str, int]: Any valuable info, will be returned by do
+        """
         return {}
 
     def post_process(self) -> Dict[str, int]:
+        """Method that can be implemented to do some processing after sources are parsed and before updates are applied.
+
+        Returns:
+        - Dict[str, int]: Any valuable info, will be returned by do
+        """
         return {}
 
     def pre_commit(self) -> Dict[str, int]:
+        """Method that can be implemented to do some processing after updates are applied and before commit in DB is done.
+
+        Returns:
+        - Dict[str, int]: Any valuable info, will be returned by do
+        """
         return {}
 
     def post_commit(self) -> Dict[str, int]:
+        """Method that can be implemented to do some processing after commit in DB is done.
+
+        Returns:
+        - Dict[str, int]: Any valuable info, will be returned by do
+        """
         return {}
 
     def get_model_data(self) -> MutableSequence[DestinationModel]:
+        """Method that can be implemented to return the items from the model.
+
+        By default, will query all data from the model.
+        It can be useful to re-implement this to filter-out data that is already imported and we know won't be present in any of the sources.
+
+        Returns:
+        - MutableSequence[DestinationModel]: Items from the model
+        """
         return self._model.query.all()
 
     def is_updated(self, item: DestinationModel, column: str) -> bool:
+        """Returns whether an item has pending updates for a column.
+
+        Args:
+        - item (DestinationModel): Item
+        - column (str): Name of the column
+
+        Returns:
+        - bool: True if there are pending updates for this column
+        """
         return item in self.updates and column in self.updates[item][0]
 
     def get_updated_value_for(self, item: DestinationModel, column: str) -> Any:
+        """Returns the value for a column - if not updated, returns the initial value.
+
+        Args:
+        - item (DestinationModel): Item
+        - column (str): Name of the column
+
+        Returns:
+        - Any: Value (can be None)
+        """
         return (
             self.updates[item][0][column]
             if item in self.updates and column in self.updates[item][0]
@@ -63,6 +152,14 @@ class ImportTask(Task, Generic[DestinationModel, DestinationModelHistory], metac
     def set_updated_value_for(
         self, item: DestinationModel, column: str, value: Any, keep_history: bool = False
     ) -> None:
+        """Sets the updated value for a column.
+
+        Args:
+        - item (DestinationModel): Item to update
+        - column (str): Name of the column
+        - value (Any): New value
+        - keep_history (bool, optional): True to keep history of the change (via createHistoryModel). Defaults to False.
+        """
         if item not in self.updates:
             self.updates[item] = ({}, set(), False)
         self.updates[item][0][column] = value
@@ -70,12 +167,27 @@ class ImportTask(Task, Generic[DestinationModel, DestinationModelHistory], metac
             self.updates[item][1].add(column)
 
     def cancel_updated_value_for(self, item: DestinationModel, column: str) -> None:
+        """Cancels an update for a column.
+
+        Args:
+        - item (DestinationModel): Item to update
+        - column (str): Name of the column
+        """
         del self.updates[item][0][column]
         self.updates[item][1].discard(column)
         if not self.updates[item][0]:
             del self.updates[item]
 
     def __init__(self, model: DestinationModel, keep_history: bool = False, *args, **kwargs):
+        """Initializes the task
+
+        Args:
+        - model (DestinationModel): Model to create/update
+        - keep_history (bool, optional): True to enable creation of historical data. Defaults to False.
+
+        Raises:
+        - RuntimeError: configure was not called
+        """
         super().__init__(*args, **kwargs)
         self._model = model
         self._keep_history = keep_history
